@@ -24,12 +24,24 @@ jobs:
       - name: Run tests
         run: pytest
 
-      - name: Log in to Docker Hub
+            - name: Test Docker Hub authentication
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-          printf '%s' "$DOCKER_PASSWORD" | docker login docker.io -u "$DOCKER_USERNAME" --password-stdin
+          STATUS=$(curl -s -o /tmp/docker-auth-response.json -w "%{http_code}" \
+            -u "$DOCKER_USERNAME:$DOCKER_PASSWORD" \
+            "https://auth.docker.io/token?service=registry.docker.io&scope=repository:tejastuhin/flask-app:pull,push")
+
+          echo "Docker Hub authentication HTTP status: $STATUS"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Docker Hub rejected the credentials."
+            cat /tmp/docker-auth-response.json
+            exit 1
+          fi
+
+          echo "Docker Hub credentials accepted."
           
       - name: Build Docker image
         run: docker build -t tejastuhin/flask-app:${{ github.sha }} .
